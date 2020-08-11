@@ -27,13 +27,16 @@ int main() {
    **/
   int namespaces = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWIPC |
                    CLONE_NEWUSER | CLONE_NEWNET | CLONE_NEWCGROUP;
+
   pid_t p =
       clone(init_container, malloc(4096) + 4096, SIGCHLD | namespaces, NULL);
   if (p == -1) {
     perror("clone");
     exit(1);
   }
+
   waitpid(p, NULL, 0);
+
   return 0;
 }
 
@@ -48,10 +51,13 @@ int create_container(void) {
 
   // mount external FS to isolate
   chroot("/home/alpine-minirootfs-3.12.0-x86_64/");
+
   // cd intoit
   chdir("/");
+
   // mount proc
   mount("proc", "proc", "proc", 0, "");
+
   // execute the containerized shell
   execv("/bin/busybox", cmd);
   perror("exec");
