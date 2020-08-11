@@ -58,13 +58,9 @@ void drop_capabilities() {
   cap_set_proc(caps);
 }
 
-int init_container() {
-  drop_capabilities();
-  create_container();
-  return (0);
-}
-
 int create_container(void) {
+  printf("creating container...\n");
+
   char* cmd[] = {"sh", NULL};
 
   // mount external FS to isolate
@@ -81,4 +77,10 @@ int create_container(void) {
   perror("exec");
 
   exit(EXIT_FAILURE);
+}
+
+int init_container() {
+  drop_capabilities();
+  create_container();
+  return (0);
 }
