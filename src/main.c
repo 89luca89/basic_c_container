@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -12,6 +13,15 @@
 
 int init_container();
 int create_container();
+
+// list of linux capabilities to drop
+cap_t cap;
+const int cap_list[] = {
+    CAP_AUDIT_CONTROL,   CAP_AUDIT_READ,   CAP_AUDIT_WRITE, CAP_BLOCK_SUSPEND,
+    CAP_DAC_READ_SEARCH, CAP_FSETID,       CAP_IPC_LOCK,    CAP_MAC_ADMIN,
+    CAP_MAC_OVERRIDE,    CAP_MKNOD,        CAP_SETFCAP,     CAP_SYSLOG,
+    CAP_SYS_ADMIN,       CAP_SYS_BOOT,     CAP_SYS_MODULE,  CAP_SYS_NICE,
+    CAP_SYS_RAWIO,       CAP_SYS_RESOURCE, CAP_SYS_TIME,    CAP_WAKE_ALARM};
 
 int main() {
   /**
@@ -40,8 +50,16 @@ int main() {
   return 0;
 }
 
-int init_container(void* args) {
-  (void)args;
+void drop_capabilities() {
+  printf("dropping capabilities...\n");
+  cap_t caps = cap_get_proc();
+  size_t num_caps = sizeof(cap_list) / sizeof(*cap_list);
+  cap_set_flag(caps, CAP_INHERITABLE, num_caps, cap_list, CAP_CLEAR);
+  cap_set_proc(caps);
+}
+
+int init_container() {
+  drop_capabilities();
   create_container();
   return (0);
 }
