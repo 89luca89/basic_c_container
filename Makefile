@@ -1,6 +1,6 @@
 all:
-	gcc -Wall -Wextra -lm -o container_example main.c
+	gcc -Wall -Wextra -lm -o out/container_example src/main.c
 
 clean:
-	rm -f container_example
+	rm -rf out/container_example
 	make
