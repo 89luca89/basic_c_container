@@ -47,3 +47,11 @@ The following namespace isolation flags are passed to create the container:
 3. http://ifeanyi.co/posts/linux-namespaces-part-1/
 4. https://klotzandrew.com/blog/container-from-scratch
 6. https://en.wikipedia.org/wiki/Linux_namespaces
+
+### Wishlist
+
+In future it would be fun to implement:
+
+- complete cli interface much like `gontainer` does
+- qcow2 support, to use an existing VM as a template/rootfs for the container, much like `systemd-nspanw` does
+- lxc-like boot to have a full system instead of a single process
