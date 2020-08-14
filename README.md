@@ -52,6 +52,6 @@ The following namespace isolation flags are passed to create the container:
 
 In future it would be fun to implement:
 
-- complete cli interface much like `gontainer` does
-- qcow2 support, to use an existing VM as a template/rootfs for the container, much like `systemd-nspanw` does
-- lxc-like boot to have a full system instead of a single process
+[x] complete cli interface much like `gontainer` does
+[x] qcow2 support, to use an existing VM as a template/rootfs for the container, much like `systemd-nspanw` does
+[] lxc-like boot to have a full system instead of a single process
