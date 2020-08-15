@@ -2,6 +2,10 @@
 
 This is inspired by the Gontainer project by alegrey91, available here:
 
+
+DISCLAIMER: **this project is for fun and learning**
+
+
 [Gontainer](https://github.com/alegrey91/Gontainer)
 
 ## To start
