@@ -15,6 +15,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <linux/capability.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -22,13 +23,16 @@
 #include <string.h>
 #include <sys/capability.h>
 #include <sys/mount.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 int init_container();
 int create_container();
+void gen_random(char* s, const int len);
 void usage(char* progname);
 void cleanup_image(char* path);
 void cleanup_mountpoints();
@@ -41,6 +45,8 @@ void usage(char* progname);
 char* QCOW2;
 char* PATH;
 char* CMD;
+
+char HOSTNAME[10];
 
 char* MODPROBE_NBD_MODULE = "modprobe nbd max_part=8";
 char* NBD_CMD = "qemu-nbd --connect=/dev/nbd2";
@@ -70,12 +76,29 @@ void usage(char* progname)
     exit(1);
 }
 
+void gen_random(char* s, const int len)
+{
+    // declare our
+    static const char alphanum[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    for (int i = 0; i < len; ++i) {
+        s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    s[len] = 0;
+}
+
 int main(int argc, char* argv[])
 {
 
+    time_t t;
+    srand((unsigned)time(&t));
     // command line parsing
     int opt;
     int namespaces;
+
+    // generate the random hostname for the current container
+    gen_random(HOSTNAME, 10);
 
     /**
    * Namespaces to isolate,
@@ -174,15 +197,57 @@ int main(int argc, char* argv[])
     }
 
     free(MOUNT_POINTS);
+
+    printf("Exiting...\n");
     return 0;
 }
 
 void drop_capabilities()
 {
-    cap_t caps = cap_get_proc();
-    size_t num_caps = sizeof(cap_list) / sizeof(*cap_list);
-    cap_set_flag(caps, CAP_INHERITABLE, num_caps, cap_list, CAP_CLEAR);
-    cap_set_proc(caps);
+    printf("dropping capabilities...\n");
+    // list of capabilities
+    // we want to drop from child process.
+    int drop_caps[] = {
+        CAP_AUDIT_CONTROL,
+        CAP_AUDIT_READ,
+        CAP_AUDIT_WRITE,
+        CAP_BLOCK_SUSPEND,
+        CAP_DAC_READ_SEARCH,
+        CAP_FSETID,
+        CAP_IPC_LOCK,
+        CAP_MAC_ADMIN,
+        CAP_MAC_OVERRIDE,
+        CAP_MKNOD,
+        CAP_SETFCAP,
+        CAP_SYSLOG,
+        CAP_SYS_ADMIN,
+        CAP_SYS_BOOT,
+        CAP_SYS_MODULE,
+        CAP_SYS_NICE,
+        CAP_SYS_RAWIO,
+        CAP_SYS_RESOURCE,
+        CAP_SYS_TIME,
+        CAP_WAKE_ALARM
+    };
+    size_t num_caps = sizeof(drop_caps) / sizeof(*drop_caps);
+
+    // dropping capabilities
+    for (size_t i = 0; i < num_caps; i++) {
+        if (prctl(PR_CAPBSET_DROP, drop_caps[i], 0, 0, 0)) {
+            return;
+        }
+    }
+
+    // dropping inheritable capabilities
+    cap_t caps = NULL;
+    if (!(caps = cap_get_proc())
+        || cap_set_flag(caps, CAP_INHERITABLE, num_caps, drop_caps, CAP_CLEAR)
+        || cap_set_proc(caps)) {
+        if (caps)
+            cap_free(caps);
+        return;
+    }
+    cap_free(caps);
 }
 
 void prepare_image(char* qcow2, char* path)
@@ -212,7 +277,7 @@ void prepare_image(char* qcow2, char* path)
     // try mount for each supported filesystem
     for (int fstype = 0; fstype < FSTYPES_NUM; fstype++) {
         // if mount successfully, go ahead, else try another FSType
-        if (mount(NBD_PART, path, FSTYPES[fstype], 0, "") == 0) {
+        if (mount(NBD_PART, path, FSTYPES[fstype], MS_REC, "") == 0) {
             printf("detected filesystem %s...\n", FSTYPES[fstype]);
             break;
         }
@@ -247,9 +312,10 @@ int create_container(char* path, char* cmd)
     // we always want a separate proc, so it's implicit
     mount("proc", "proc", "proc", 0, "");
 
+    sethostname(HOSTNAME, strlen(HOSTNAME));
     // drop prefixed capabilities
     printf("dropping capabilities...\n");
-    //drop_capabilities();
+    drop_capabilities();
 
     // execute the containerized shell
     execv("/bin/sh", command);
@@ -278,7 +344,7 @@ void setup_mountpoints()
         sprintf(mount_point, "%s%s", PATH, internal_path + 1);
 
         //bind mount it
-        mount(external_path, mount_point, "", MS_BIND, NULL);
+        mount(external_path, mount_point, "", MS_BIND | MS_REC | MS_PRIVATE, NULL);
     }
 }
 
