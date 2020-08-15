@@ -54,6 +54,7 @@ In future it would be fun to implement:
 
 - [x] complete cli interface much like `gontainer` does
 - [x] qcow2 support, to use an existing VM as a template/rootfs for the container, much like `systemd-nspanw` does
+- [ ] mountpoints support docker style `-v a:b -v c:d`
 - [ ] img support to use existing VM as template/rootfs for the container
 - [ ] directly use docker images as template/rootfs for the container
 - [ ] lxc-like boot to have a full system instead of a single process
