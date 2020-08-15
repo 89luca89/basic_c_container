@@ -18,15 +18,14 @@ sudo mkdir /home/alpine-minirootfs-3.12.0-x86_64;
 sudo chown 1000.1000 /home/alpine-minirootfs-3.12.0-x86_64
 tar xfv alpine-minirootfs-3.12.0-x86_64.tar.gz -C /home/alpine-minirootfs-3.12.0-x86_64
 ```
+
 ### Compiling
 
 `make clean`
 
 ### Executing
 
-`./container_example`
-
-you will enter a containerized environment based on **alpine linux**, with busybox
+`sudo ./out/container_example -i -m -p -u -c -P /home/alpine-minirootfs-3.12.0-x86_64/ -C /bin/sh`
 
 The following namespace isolation flags are passed to create the container:
 
@@ -39,6 +38,29 @@ The following namespace isolation flags are passed to create the container:
    *    `CLONE_NEWCGROUP` = Create the process in a new cgroup namespace
 
 
+### Example with command line arguments
+
+```
+container_example [-Q path-to-qcow2-image (optional)]
+ [-P path-to-mountpoint]
+ [-C command-to-execute] [-h]
+ [-i reate the process in a new IPC namespace]
+ [-n isolate network devices from host ]
+ [-m isolate mountpoints namespace]
+ [-p create the process in a new PID namespace]
+ [-u isolate hostname]
+ [-U Create the process in a new cgroup namespace]
+ [-v mount_host:mount_container ]
+```
+
+if you want to use qcow2 images as base for rootfs, you can use the `-Q` flag to point to the .qcow2 file,
+example of centos8 container starting from a working VM:
+
+`sudo ./out/container_example -i -m -p -u -c -P /home/centos-rootfs/ -Q ~/VirtualMachines/centos8-terraform.qcow2 -C /bin/bash -v /home/luca-linux:/home`
+
+this will create a centos8 container, and share the '/home/linux' folder with it.
+
+[!centos8-container](./pics/centos8-container.png)
 
 
 ## References
@@ -53,8 +75,8 @@ The following namespace isolation flags are passed to create the container:
 In future it would be fun to implement:
 
 - [x] complete cli interface much like `gontainer` does
+- [x] mountpoints support docker style `-v a:b -v c:d`
 - [x] qcow2 support, to use an existing VM as a template/rootfs for the container, much like `systemd-nspanw` does
-- [ ] mountpoints support docker style `-v a:b -v c:d`
-- [ ] img support to use existing VM as template/rootfs for the container
+- [ ] img/iso support to use existing VM as template/rootfs for the container
 - [ ] directly use docker images as template/rootfs for the container
 - [ ] lxc-like boot to have a full system instead of a single process
