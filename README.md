@@ -60,7 +60,7 @@ example of centos8 container starting from a working VM:
 
 this will create a centos8 container, and share the '/home/linux' folder with it.
 
-[!centos8-container](./pics/centos8-container.png)
+![centos8-container](./pics/centos8-container.png)
 
 
 ## References
