@@ -27,29 +27,19 @@ tar xfv alpine-minirootfs-3.12.0-x86_64.tar.gz -C /home/alpine-minirootfs-3.12.0
 
 `sudo ./out/container_example -i -m -p -u -c -P /home/alpine-minirootfs-3.12.0-x86_64/ -C /bin/sh`
 
-The following namespace isolation flags are passed to create the container:
-
-   *    `CLONE_NEWIPC`    = create the process in a new IPC namespace
-   *    `CLONE_NEWNET`    = isolate network devices from host
-   *    `CLONE_NEWNS `    = isolate mountpoints namespace
-   *    `CLONE_NEWPID`    = create the process in a new PID namespace
-   *    `CLONE_NEWUSER`   = executed in a new user namespace, isolate users
-   *    `CLONE_NEWUTS`    = isolate hostname
-   *    `CLONE_NEWCGROUP` = Create the process in a new cgroup namespace
-
-
 ### Example with command line arguments
 
 ```
 container_example [-Q path-to-qcow2-image (optional)]
  [-P path-to-mountpoint]
  [-C command-to-execute] [-h]
- [-i reate the process in a new IPC namespace]
- [-n isolate network devices from host ]
+ [-i reate the process in a new IPC namespace] 
+ [-n isolate network devices from host ] 
  [-m isolate mountpoints namespace]
- [-p create the process in a new PID namespace]
- [-u isolate hostname]
- [-U Create the process in a new cgroup namespace]
+ [-p create the process in a new PID namespace] 
+ [-u isolate hostname] 
+ [-c Create the process in a new cgroup ]
+ [-U create the process in a new USER namespace ]
  [-v mount_host:mount_container ]
 ```
 
@@ -57,6 +47,17 @@ if you want to use qcow2 images as base for rootfs, you can use the `-Q` flag to
 example of centos8 container starting from a working VM:
 
 `sudo ./out/container_example -i -m -p -u -c -P /home/centos-rootfs/ -Q ~/VirtualMachines/centos8-terraform.qcow2 -C /bin/bash -v /home/luca-linux:/home`
+
+The following namespace isolation flags are passed to create the container:
+
+   *  `-i`  `CLONE_NEWIPC`    = create the process in a new IPC namespace
+   *  `-n`  `CLONE_NEWNET`    = isolate network devices from host
+   *  `-m`  `CLONE_NEWNS `    = isolate mountpoints namespace
+   *  `-p`  `CLONE_NEWPID`    = create the process in a new PID namespace
+   *  `-U`  `CLONE_NEWUSER`   = executed in a new user namespace, isolate users
+   *  `-u`  `CLONE_NEWUTS`    = isolate hostname
+   *  `-c`  `CLONE_NEWCGROUP` = Create the process in a new cgroup namespace
+
 
 this will create a centos8 container, and share the '/home/linux' folder with it.
 

@@ -3,8 +3,13 @@
 #define OPTSTR "inmpuUcQ:P:C:v:h"
 #define USAGE_FMT \
     "%s [-Q path-to-qcow2-image (optional)]\n [-P path-to-mountpoint]\n [-C command-to-execute] [-h]\n \
-[-i reate the process in a new IPC namespace] \n [-n isolate network devices from host ] \n [-m isolate mountpoints namespace]\n \
-[-p create the process in a new PID namespace] \n [-u isolate hostname] \n [-U Create the process in a new cgroup namespace]\n \
+[-i reate the process in a new IPC namespace] \n \
+[-n isolate network devices from host ] \n \
+[-m isolate mountpoints namespace]\n \
+[-p create the process in a new PID namespace] \n \
+[-u isolate hostname] \n \
+[-c Create the process in a new cgroup ]\n \
+[-U create the process in a new USER namespace ]\n \
 [-v mount_host:mount_container ]\n"
 #define DEFAULT_PROGNAME "container_example"
 
