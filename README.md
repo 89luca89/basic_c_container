@@ -66,6 +66,14 @@ this will create a centos8 container, and share the '/home/linux' folder with it
 ![centos8-container](./pics/centos8-container.png)
 
 
+---
+
+Also capabilities are dropped in the container, root does not have full admin capabilities:
+
+
+![outside-container](./pics/outside-container.png)
+![inside-container](./pics/inside-container.png)
+
 ## References
 
 1. https://medium.com/@teddyking/linux-namespaces-850489d3ccf
