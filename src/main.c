@@ -33,6 +33,8 @@ char* QCOW2;
 char* PATH;
 char* CMD;
 
+char* NBD_CMD = "qemu-nbd --connect=/dev/nbd2";
+
 const char* FSTYPES[] = { "ext4", "ext3", "xfs", "btrfs" };
 int FSTYPES_NUM = sizeof(FSTYPES) / sizeof(const char*);
 
@@ -170,11 +172,8 @@ void prepare_image(char* qcow2, char* path)
     system("modprobe nbd max_part=8");
 
     printf("nbd: mounting qcow2 to target dir...\n");
-    char* ndb_command = "qemu-nbd --connect=/dev/nbd2 ";
-    char* command = malloc(strlen(ndb_command) + strlen(qcow2) + 1);
-    strcpy(command, ndb_command);
-    strcat(command, qcow2);
-
+    char command[strlen(NBD_CMD) + strlen(qcow2) + 1];
+    sprintf(command, "%s %s", NBD_CMD, qcow2);
     system(command);
 
     // wait for nbd to finish...
