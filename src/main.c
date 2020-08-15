@@ -1,10 +1,11 @@
 #define _GNU_SOURCE
 
-#define OPTSTR "inmpuUcQ:P:C:h"
+#define OPTSTR "inmpuUcQ:P:C:v:h"
 #define USAGE_FMT \
     "%s [-Q path-to-qcow2-image (optional)]\n [-P path-to-mountpoint]\n [-C command-to-execute] [-h]\n \
 [-i reate the process in a new IPC namespace] \n [-n isolate network devices from host ] \n [-m isolate mountpoints namespace]\n \
-[-p create the process in a new PID namespace] \n [-u isolate hostname] \n [-U Create the process in a new cgroup namespace]\n"
+[-p create the process in a new PID namespace] \n [-u isolate hostname] \n [-U Create the process in a new cgroup namespace]\n \
+[-v mount_host:mount_container ]\n"
 #define DEFAULT_PROGNAME "container_example"
 
 #include <dirent.h>
@@ -24,18 +25,28 @@
 int init_container();
 int create_container();
 void usage(char* progname);
+void cleanup_image(char* path);
+void cleanup_mountpoints();
 void drop_capabilities();
 void prepare_image(char* qcow2, char* path);
-void cleanup_image(char* path);
+void setup_mountpoints();
+void usage(char* progname);
 
 // global variables, set up by cmd line args
 char* QCOW2;
 char* PATH;
 char* CMD;
 
+char* MODPROBE_NBD_MODULE = "modprobe nbd max_part=8";
 char* NBD_CMD = "qemu-nbd --connect=/dev/nbd2";
+char* NBD_DISCONNECT_CMD = "qemu-nbd -d /dev/nbd2";
+char* NBD_PART = "/dev/nbd2p1";
 
-const char* FSTYPES[] = { "ext4", "ext3", "xfs", "btrfs" };
+// keep track of mountpoints
+char** MOUNT_POINTS;
+int MOUNT_POINTS_NUM = 0;
+
+const char* FSTYPES[] = { "ext4", "ext3", "ext2", "xfs", "btrfs" };
 int FSTYPES_NUM = sizeof(FSTYPES) / sizeof(const char*);
 
 // list of linux capabilities to drop
@@ -96,6 +107,12 @@ int main(int argc, char* argv[])
         case 'c':
             namespaces |= CLONE_NEWCGROUP;
             break;
+        case 'v':
+            MOUNT_POINTS_NUM++;
+            MOUNT_POINTS = (char**)realloc(MOUNT_POINTS, (MOUNT_POINTS_NUM) * sizeof(char*));
+            MOUNT_POINTS[MOUNT_POINTS_NUM - 1] = optarg;
+            printf("%s\n", optarg);
+            break;
         case 'Q':
             QCOW2 = optarg;
             printf("qcow2 image: %s\n", QCOW2);
@@ -129,6 +146,8 @@ int main(int argc, char* argv[])
         prepare_image(QCOW2, PATH);
     }
 
+    setup_mountpoints();
+
     int child_pid = clone(init_container, malloc(4096) + 4096, SIGCHLD | namespaces, NULL);
     if (child_pid == -1) {
         perror("clone");
@@ -138,12 +157,18 @@ int main(int argc, char* argv[])
     // wait...
     waitpid(child_pid, NULL, 0);
 
+    printf("\ncontainer terminated\n");
+
+    cleanup_mountpoints();
+
     // when exiting a container, cleanup it.
     // cleanup qcow2 image mounting.
     if (QCOW2 != NULL) {
         printf("cleaning up...\n");
         cleanup_image(PATH);
     }
+
+    free(MOUNT_POINTS);
     return 0;
 }
 
@@ -169,7 +194,7 @@ void prepare_image(char* qcow2, char* path)
         mkdir(path, 0755);
     }
 
-    system("modprobe nbd max_part=8");
+    system(MODPROBE_NBD_MODULE);
 
     printf("nbd: mounting qcow2 to target dir...\n");
     char command[strlen(NBD_CMD) + strlen(qcow2) + 1];
@@ -182,7 +207,7 @@ void prepare_image(char* qcow2, char* path)
     // try mount for each supported filesystem
     for (int fstype = 0; fstype < FSTYPES_NUM; fstype++) {
         // if mount successfully, go ahead, else try another FSType
-        if (mount("/dev/nbd2p1", path, FSTYPES[fstype], 0, "") == 0) {
+        if (mount(NBD_PART, path, FSTYPES[fstype], 0, "") == 0) {
             printf("detected filesystem %s...\n", FSTYPES[fstype]);
             break;
         }
@@ -199,7 +224,7 @@ void cleanup_image(char* path)
 
     // let system know we have umounted.
     sleep(1);
-    system("qemu-nbd -d /dev/nbd2 ");
+    system(NBD_DISCONNECT_CMD);
 }
 
 int create_container(char* path, char* cmd)
@@ -213,19 +238,73 @@ int create_container(char* path, char* cmd)
     // cd into root
     chdir("/");
 
-    //
-    mount("sys", "sys", "sys", 0, "");
+    // this is an exception of the setup_mountpoints,
+    // we always want a separate proc, so it's implicit
     mount("proc", "proc", "proc", 0, "");
 
     // drop prefixed capabilities
     printf("dropping capabilities...\n");
-    drop_capabilities();
+    //drop_capabilities();
 
     // execute the containerized shell
     execv("/bin/sh", command);
     perror("exec");
 
     return (0);
+}
+
+void setup_mountpoints()
+{
+
+    printf("creating mountpoints...\n");
+    int mount_idx;
+    for (mount_idx = 0; mount_idx < MOUNT_POINTS_NUM; mount_idx++) {
+        // reconstruct the mountpoint from external, this will be
+        // the internal mountpoint, removed the first '/' char
+        // and then concatenated to the mount_path of the rootfs
+        char mount_token[strlen(MOUNT_POINTS[mount_idx])];
+        strcpy(mount_token, MOUNT_POINTS[mount_idx]);
+        char* external_path = strtok(mount_token, ":");
+        // get second string in split
+        char* internal_path = strtok(NULL, ":");
+        printf("%s %s \n", external_path, internal_path);
+        // reconstruct the external mountpoint
+        char mount_point[strlen(PATH) + strlen(internal_path)];
+        sprintf(mount_point, "%s%s", PATH, internal_path + 1);
+
+        //bind mount it
+        mount(external_path, mount_point, "", MS_BIND, NULL);
+    }
+}
+
+void cleanup_mountpoints()
+{
+    printf("cleaning up mountpoints...\n");
+
+    // this is an exception of the setup_mountpoints,
+    // we always want a separate proc, so it's implicit
+    char* proc = "proc";
+    char proc_target[strlen(proc) + strlen(PATH) + 1];
+    sprintf(proc_target, "%s%s", PATH, proc);
+    umount(proc_target);
+
+    int mount_idx;
+    for (mount_idx = 0; mount_idx < MOUNT_POINTS_NUM; mount_idx++) {
+        // reconstruct the mountpoint from external, this will be
+        // the internal mountpoint, removed the first '/' char
+        // and then concatenated to the mount_path of the rootfs
+        char mount_token[strlen(MOUNT_POINTS[mount_idx])];
+        strcpy(mount_token, MOUNT_POINTS[mount_idx]);
+        char* internal_path = strtok(mount_token, ":");
+        // get second string in split
+        internal_path = strtok(NULL, ":");
+        // reconstruct the external mountpoint
+        char mount_point[strlen(PATH) + strlen(internal_path)];
+        sprintf(mount_point, "%s%s", PATH, internal_path + 1);
+
+        //unmount it
+        umount(mount_point);
+    }
 }
 
 int init_container()
