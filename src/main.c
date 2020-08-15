@@ -112,7 +112,6 @@ int main(int argc, char* argv[])
    *
    **/
     while ((opt = getopt(argc, argv, OPTSTR)) != EOF) {
-        printf("option: %c\n", opt);
         switch (opt) {
         case 'i':
             namespaces |= CLONE_NEWIPC;

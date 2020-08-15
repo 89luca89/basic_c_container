@@ -27,6 +27,8 @@ tar xfv alpine-minirootfs-3.12.0-x86_64.tar.gz -C /home/alpine-minirootfs-3.12.0
 
 `sudo ./out/container_example -i -m -p -u -c -P /home/alpine-minirootfs-3.12.0-x86_64/ -C /bin/sh`
 
+![alpine-container](./pics/alpine-container.png)
+
 ### Example with command line arguments
 
 ```
