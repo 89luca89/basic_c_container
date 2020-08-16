@@ -49,9 +49,9 @@ char* CMD;
 char HOSTNAME[10];
 
 char* MODPROBE_NBD_MODULE = "modprobe nbd max_part=8";
-char* NBD_CMD = "qemu-nbd --connect=/dev/nbd2";
-char* NBD_DISCONNECT_CMD = "qemu-nbd -d /dev/nbd2";
-char* NBD_PART = "/dev/nbd2p1";
+char* NBD_CMD = "qemu-nbd --connect=/dev/nbd0";
+char* NBD_DISCONNECT_CMD = "qemu-nbd -d /dev/nbd0";
+char* NBD_PART = "/dev/nbd0p1";
 
 // keep track of mountpoints
 char** MOUNT_POINTS;
@@ -59,16 +59,6 @@ int MOUNT_POINTS_NUM = 0;
 
 const char* FSTYPES[] = { "ext4", "ext3", "ext2", "xfs", "btrfs" };
 int FSTYPES_NUM = sizeof(FSTYPES) / sizeof(const char*);
-
-// list of linux capabilities to drop
-cap_t cap;
-const int cap_list[] = {
-    CAP_AUDIT_CONTROL, CAP_AUDIT_READ, CAP_AUDIT_WRITE, CAP_BLOCK_SUSPEND,
-    CAP_DAC_READ_SEARCH, CAP_FSETID, CAP_IPC_LOCK, CAP_MAC_ADMIN,
-    CAP_MAC_OVERRIDE, CAP_MKNOD, CAP_SETFCAP, CAP_SYSLOG,
-    CAP_SYS_ADMIN, CAP_SYS_BOOT, CAP_SYS_MODULE, CAP_SYS_NICE,
-    CAP_SYS_RAWIO, CAP_SYS_RESOURCE, CAP_SYS_TIME, CAP_WAKE_ALARM
-};
 
 void usage(char* progname)
 {
@@ -207,25 +197,43 @@ void drop_capabilities()
     // list of capabilities
     // we want to drop from child process.
     int drop_caps[] = {
+        CAP_NET_BIND_SERVICE,
+        CAP_SYS_ADMIN,
+        CAP_SYS_CHROOT,
         CAP_AUDIT_CONTROL,
         CAP_AUDIT_READ,
         CAP_AUDIT_WRITE,
         CAP_BLOCK_SUSPEND,
+        CAP_CHOWN,
+        CAP_DAC_OVERRIDE,
         CAP_DAC_READ_SEARCH,
+        CAP_FOWNER,
         CAP_FSETID,
         CAP_IPC_LOCK,
+        CAP_IPC_OWNER,
+        CAP_KILL,
+        CAP_LEASE,
+        CAP_LINUX_IMMUTABLE,
         CAP_MAC_ADMIN,
         CAP_MAC_OVERRIDE,
         CAP_MKNOD,
+        CAP_NET_ADMIN,
+        CAP_NET_BROADCAST,
+        CAP_NET_RAW,
         CAP_SETFCAP,
+        CAP_SETGID,
+        CAP_SETPCAP,
+        CAP_SETUID,
         CAP_SYSLOG,
-        CAP_SYS_ADMIN,
         CAP_SYS_BOOT,
         CAP_SYS_MODULE,
         CAP_SYS_NICE,
+        CAP_SYS_PACCT,
+        CAP_SYS_PTRACE,
         CAP_SYS_RAWIO,
         CAP_SYS_RESOURCE,
         CAP_SYS_TIME,
+        CAP_SYS_TTY_CONFIG,
         CAP_WAKE_ALARM
     };
     size_t num_caps = sizeof(drop_caps) / sizeof(*drop_caps);
