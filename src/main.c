@@ -81,8 +81,10 @@ void gen_random(char* s, const int len)
 int main(int argc, char* argv[])
 {
 
+    // initialize random seed using now time.
     time_t t;
     srand((unsigned)time(&t));
+
     // command line parsing
     int opt;
     int namespaces;
@@ -125,22 +127,20 @@ int main(int argc, char* argv[])
             namespaces |= CLONE_NEWCGROUP;
             break;
         case 'v':
+            // populate the MOUNT_POINTS array with all the mountpoints in form of
+            // host_dir:guest_dir
             MOUNT_POINTS_NUM++;
             MOUNT_POINTS = (char**)realloc(MOUNT_POINTS, (MOUNT_POINTS_NUM) * sizeof(char*));
             MOUNT_POINTS[MOUNT_POINTS_NUM - 1] = optarg;
-            printf("%s\n", optarg);
             break;
         case 'Q':
             QCOW2 = optarg;
-            printf("qcow2 image: %s\n", QCOW2);
             break;
         case 'P':
             PATH = optarg;
-            printf("path is: %s\n", PATH);
             break;
         case 'C':
             CMD = optarg;
-            printf("command is: %s\n", CMD);
             break;
         case 'h':
         default:
@@ -163,11 +163,13 @@ int main(int argc, char* argv[])
         prepare_image(QCOW2, PATH);
     }
 
+    // actualize bindmounts
     setup_mountpoints();
 
+    // we now clone the process with constrained namespaces.
+    // init_container will initialize the container and capabilities
     int child_pid = clone(init_container, malloc(4096) + 4096, SIGCHLD | namespaces, NULL);
     if (child_pid == -1) {
-        perror("clone");
         exit(1);
     }
 
@@ -176,6 +178,7 @@ int main(int argc, char* argv[])
 
     printf("\ncontainer terminated\n");
 
+    // remove bindmounts
     cleanup_mountpoints();
 
     // when exiting a container, cleanup it.
@@ -271,9 +274,11 @@ void prepare_image(char* qcow2, char* path)
         mkdir(path, 0755);
     }
 
+    // we need the nbd module loaded to make qcow2 images to work.
     system(MODPROBE_NBD_MODULE);
 
     printf("nbd: mounting qcow2 to target dir...\n");
+    // build our command using the passed qcow2 path
     char command[strlen(NBD_CMD) + strlen(qcow2) + 1];
     sprintf(command, "%s %s", NBD_CMD, qcow2);
     system(command);
@@ -288,7 +293,6 @@ void prepare_image(char* qcow2, char* path)
             printf("detected filesystem %s...\n", FSTYPES[fstype]);
             break;
         }
-        perror("mount");
         printf("failed to detect %s...\n", FSTYPES[fstype]);
     }
 }
@@ -310,7 +314,6 @@ int create_container(char* path, char* cmd)
 
     // mount external FS to isolate
     chroot(path);
-    perror("chroot");
 
     // cd into root
     chdir("/");
@@ -319,9 +322,10 @@ int create_container(char* path, char* cmd)
     // we always want a separate proc, so it's implicit
     mount("proc", "proc", "proc", 0, "");
 
+    // set container hostname to random hostname
     sethostname(HOSTNAME, strlen(HOSTNAME));
+
     // drop prefixed capabilities
-    printf("dropping capabilities...\n");
     drop_capabilities();
 
     // execute the containerized shell
@@ -345,7 +349,6 @@ void setup_mountpoints()
         char* external_path = strtok(mount_token, ":");
         // get second string in split
         char* internal_path = strtok(NULL, ":");
-        printf("%s %s \n", external_path, internal_path);
         // reconstruct the external mountpoint
         char mount_point[strlen(PATH) + strlen(internal_path)];
         sprintf(mount_point, "%s%s", PATH, internal_path + 1);
