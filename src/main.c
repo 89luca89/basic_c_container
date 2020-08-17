@@ -249,15 +249,6 @@ void drop_capabilities()
         }
     }
 
-    // set securebits:
-    //
-    prctl(PR_SET_SECUREBITS,
-                     SECBIT_NOROOT |
-                     SECBIT_NO_SETUID_FIXUP |
-                     SECBIT_KEEP_CAPS |
-                     SECBIT_NO_CAP_AMBIENT_RAISE |
-                     SECURE_ALL_LOCKS);
-
     // dropping inheritable capabilities
     cap_t caps = NULL;
     if (!(caps = cap_get_proc())
@@ -268,6 +259,11 @@ void drop_capabilities()
         return;
     }
     cap_free(caps);
+
+    // set securebits:
+    //
+    prctl(PR_SET_SECUREBITS,
+        SECBIT_NOROOT | SECBIT_NO_SETUID_FIXUP | SECBIT_KEEP_CAPS | SECBIT_NO_CAP_AMBIENT_RAISE | SECURE_ALL_LOCKS);
 }
 
 void prepare_image(char* qcow2, char* path)
