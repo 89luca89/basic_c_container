@@ -16,6 +16,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <linux/capability.h>
+#include <linux/securebits.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -247,6 +248,15 @@ void drop_capabilities()
             return;
         }
     }
+
+    // set securebits:
+    //
+    prctl(PR_SET_SECUREBITS,
+                     SECBIT_NOROOT |
+                     SECBIT_NO_SETUID_FIXUP |
+                     SECBIT_KEEP_CAPS |
+                     SECBIT_NO_CAP_AMBIENT_RAISE |
+                     SECURE_ALL_LOCKS);
 
     // dropping inheritable capabilities
     cap_t caps = NULL;
