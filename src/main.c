@@ -15,7 +15,7 @@
 
 #include <dirent.h>
 #include <errno.h>
-#include <linux/capability.h>
+#include <fcntl.h>
 #include <linux/securebits.h>
 #include <sched.h>
 #include <signal.h>
@@ -41,6 +41,9 @@ void drop_capabilities();
 void prepare_image(char* qcow2, char* path);
 void setup_mountpoints();
 void usage(char* progname);
+void set_userns_mapping(int pid);
+
+int MAX_STRING = 100;
 
 // global variables, set up by cmd line args
 char* QCOW2;
@@ -57,6 +60,8 @@ char* NBD_PART = "/dev/nbd0p1";
 // keep track of mountpoints
 char** MOUNT_POINTS;
 int MOUNT_POINTS_NUM = 0;
+
+int NEW_USER_NS = 0;
 
 const char* FSTYPES[] = { "ext4", "ext3", "ext2", "xfs", "btrfs" };
 int FSTYPES_NUM = sizeof(FSTYPES) / sizeof(const char*);
@@ -81,7 +86,6 @@ void gen_random(char* s, const int len)
 
 int main(int argc, char* argv[])
 {
-
     // initialize random seed using now time.
     time_t t;
     srand((unsigned)time(&t));
@@ -123,6 +127,7 @@ int main(int argc, char* argv[])
             break;
         case 'U':
             namespaces |= CLONE_NEWUSER;
+            NEW_USER_NS = 1;
             break;
         case 'c':
             namespaces |= CLONE_NEWCGROUP;
@@ -151,7 +156,7 @@ int main(int argc, char* argv[])
     }
 
     // in case we deal with qcow2 files, we need root.
-    if (QCOW2 != NULL) {
+    if (QCOW2 != NULL || NEW_USER_NS == 0) {
         if (geteuid() != 0) {
             printf("Run as root please.\n");
             exit(1);
@@ -171,7 +176,15 @@ int main(int argc, char* argv[])
     // init_container will initialize the container and capabilities
     int child_pid = clone(init_container, malloc(4096) + 4096, SIGCHLD | namespaces, NULL);
     if (child_pid == -1) {
+        perror("clone");
+        printf("1\n");
         exit(1);
+    }
+
+    // do user/group mapping only if we are
+    // isolating user_ns
+    if (NEW_USER_NS == 1) {
+        set_userns_mapping(child_pid);
     }
 
     // wait...
@@ -200,8 +213,7 @@ void drop_capabilities()
     printf("dropping capabilities...\n");
     // list of capabilities
     // we want to drop from child process.
-    int drop_caps[] = {
-        CAP_NET_BIND_SERVICE,
+    int drop_caps[] = { CAP_NET_BIND_SERVICE,
         CAP_SYS_ADMIN,
         CAP_SYS_CHROOT,
         CAP_AUDIT_CONTROL,
@@ -238,8 +250,7 @@ void drop_capabilities()
         CAP_SYS_RESOURCE,
         CAP_SYS_TIME,
         CAP_SYS_TTY_CONFIG,
-        CAP_WAKE_ALARM
-    };
+        CAP_WAKE_ALARM };
     size_t num_caps = sizeof(drop_caps) / sizeof(*drop_caps);
 
     // dropping capabilities
@@ -251,9 +262,7 @@ void drop_capabilities()
 
     // dropping inheritable capabilities
     cap_t caps = NULL;
-    if (!(caps = cap_get_proc())
-        || cap_set_flag(caps, CAP_INHERITABLE, num_caps, drop_caps, CAP_CLEAR)
-        || cap_set_proc(caps)) {
+    if (!(caps = cap_get_proc()) || cap_set_flag(caps, CAP_INHERITABLE, num_caps, drop_caps, CAP_CLEAR) || cap_set_proc(caps)) {
         if (caps)
             cap_free(caps);
         return;
@@ -262,13 +271,11 @@ void drop_capabilities()
 
     // set securebits:
     //
-    prctl(PR_SET_SECUREBITS,
-        SECBIT_NOROOT | SECBIT_NO_SETUID_FIXUP | SECBIT_KEEP_CAPS | SECBIT_NO_CAP_AMBIENT_RAISE | SECURE_ALL_LOCKS);
+    prctl(PR_SET_SECUREBITS, SECBIT_NOROOT | SECBIT_NO_SETUID_FIXUP | SECBIT_KEEP_CAPS | SECBIT_NO_CAP_AMBIENT_RAISE | SECURE_ALL_LOCKS);
 }
 
 void prepare_image(char* qcow2, char* path)
 {
-
     printf("checking mount dir...\n");
     // check if path exists, if not, create it.
     DIR* dir = opendir(path);
@@ -343,7 +350,6 @@ int create_container(char* path, char* cmd)
 
 void setup_mountpoints()
 {
-
     printf("creating mountpoints...\n");
     int mount_idx;
     for (mount_idx = 0; mount_idx < MOUNT_POINTS_NUM; mount_idx++) {
@@ -359,7 +365,7 @@ void setup_mountpoints()
         char mount_point[strlen(PATH) + strlen(internal_path)];
         sprintf(mount_point, "%s%s", PATH, internal_path + 1);
 
-        //bind mount it
+        // bind mount it
         mount(external_path, mount_point, "", MS_BIND | MS_REC | MS_PRIVATE, NULL);
     }
 }
@@ -389,9 +395,67 @@ void cleanup_mountpoints()
         char mount_point[strlen(PATH) + strlen(internal_path)];
         sprintf(mount_point, "%s%s", PATH, internal_path + 1);
 
-        //unmount it
+        // unmount it
         umount(mount_point);
     }
+}
+
+/**
+ * map user process to root inside the container, this way
+ * when we isolate the user namespace, we have root inside
+ * the container mapped to the current non-root user outside
+ * of it.
+ */
+void set_userns_mapping(int pid)
+{
+    char map_buf[MAX_STRING];
+
+    // create the path to the uid_map
+    char uid_path[MAX_STRING];
+    snprintf(uid_path, MAX_STRING, "/proc/%ld/uid_map", (long)pid);
+
+    // create the path to the gid_map
+    char gid_path[MAX_STRING];
+    snprintf(gid_path, MAX_STRING, "/proc/%ld/gid_map", (long)pid);
+
+    // create the user mapping in the form of "0 UID 1"
+    snprintf(map_buf, MAX_STRING, "0 %ld 1", (long)getuid());
+    char* uid_map = map_buf;
+
+    // create the group mapping in the form of "0 UID 1"
+    snprintf(map_buf, MAX_STRING, "0 %ld 1", (long)getgid());
+    char* gid_map = map_buf;
+
+    // make the group map writable by putting "deny" inside
+    // of the /proc/PID/setgroups file.
+    char setgroups_path[MAX_STRING];
+    char* setgroups_write = "deny";
+    snprintf(setgroups_path, MAX_STRING, "/proc/%ld/setgroups", (long)pid);
+
+    int fd;
+
+    // setgroups write
+    fd = open(setgroups_path, O_RDWR);
+    if (fd == -1) {
+        printf("Error opening file %s\n", setgroups_path);
+    }
+    write(fd, setgroups_write, strlen(setgroups_write));
+
+    // gid_map write
+    fd = open(gid_path, O_RDWR);
+    if (fd == -1) {
+        printf("Error opening file %s\n", gid_path);
+    }
+    write(fd, gid_map, strlen(gid_map));
+    close(fd);
+
+    // uid_map write
+    fd = open(uid_path, O_RDWR);
+    if (fd == -1) {
+        printf("Error opening file %s\n", uid_path);
+    }
+    write(fd, uid_map, strlen(uid_map));
+    close(fd);
 }
 
 int init_container()

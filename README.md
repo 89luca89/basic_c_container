@@ -23,6 +23,20 @@ sudo chown 1000.1000 /home/alpine-minirootfs-3.12.0-x86_64
 tar xfv alpine-minirootfs-3.12.0-x86_64.tar.gz -C /home/alpine-minirootfs-3.12.0-x86_64
 ```
 
+### Dependency
+
+This project depends on libcap-dev
+
+`yum install libcap-devel`
+
+or
+
+`apt install libcap-dev`
+
+or
+
+`zypper install libcap-devel`
+
 ### Compiling
 
 `make clean`
