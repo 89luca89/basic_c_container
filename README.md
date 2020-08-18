@@ -92,6 +92,24 @@ Also capabilities are dropped in the container, root does not have full admin ca
 ![outside-container](./pics/outside-container.png)
 ![inside-container](./pics/inside-container.png)
 
+## Goint Rootless
+
+Creating a container without root is possible, specifying the `-U` flag to create a new
+**user namespace**, this will map the current user to the corresponding root of the container.
+
+this is **NOT** compatible with:
+
+- mounting options (needs root)
+- using qcow2 images (needs root)
+
+command:
+
+`./out/container_example -i -m -p -u -c -P /home/alpine-minirootfs-3.12.0-x86_64/ -C /bin/sh -U`
+
+![rootless-container-1](./pics/rootless-container-1.png)
+![rootless-container-2](./pics/rootless-container-2.png)
+
+
 ## References
 
 1. https://medium.com/@teddyking/linux-namespaces-850489d3ccf
@@ -104,6 +122,8 @@ Also capabilities are dropped in the container, root does not have full admin ca
 In future it would be fun to implement:
 
 - [x] complete cli interface much like `gontainer` does
+- [x] support for capabilities+secutebits to create unprivileged containers
+- [x] rootless containers
 - [x] mountpoints support docker style `-v a:b -v c:d`
 - [x] qcow2 support, to use an existing VM as a template/rootfs for the container, much like `systemd-nspanw` does
 - [ ] img/iso support to use existing VM as template/rootfs for the container
