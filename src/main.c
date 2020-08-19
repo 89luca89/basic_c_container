@@ -1,21 +1,23 @@
 #define _GNU_SOURCE
 
-#define OPTSTR "inmpuUcQ:P:C:v:h"
+#define OPTSTR "inmpuUcX:Y:Z:W:Q:P:C:v:h"
 #define USAGE_FMT \
-    "%s [-Q path-to-qcow2-image (optional)]\n [-P path-to-mountpoint]\n [-C command-to-execute] [-h]\n \
-[-i reate the process in a new IPC namespace] \n \
-[-n isolate network devices from host ] \n \
-[-m isolate mountpoints namespace]\n \
-[-p create the process in a new PID namespace] \n \
-[-u isolate hostname] \n \
-[-c Create the process in a new cgroup ]\n \
-[-U create the process in a new USER namespace ]\n \
-[-v mount_host:mount_container ]\n"
+    "Usage: %s [OPTION]...\n \
+[-Q/--qcow2 path-to-qcow2-image (optional)]\n [-P/--path path-to-mountpoint]\n [-C/--command command-to-execute] [-h/--help]\n \
+[-i/--ipc reate the process in a new IPC namespace] \n \
+[-n/--net isolate network devices from host ] \n \
+[-m/--mounts isolate mountpoints namespace]\n \
+[-p/--pid create the process in a new PID namespace] \n \
+[-u/--uts isolate hostname] \n \
+[-c/--cgroup Create the process in a new cgroup ]\n \
+[-U/--user create the process in a new USER namespace ]\n \
+[-v/--volume mount_host:mount_container ]\n"
 #define DEFAULT_PROGNAME "container_example"
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <linux/securebits.h>
 #include <sched.h>
 #include <signal.h>
@@ -108,7 +110,23 @@ int main(int argc, char* argv[])
    *    CLONE_NEWCGROUP = Create the process in a new cgroup namespace
    *
    **/
-    while ((opt = getopt(argc, argv, OPTSTR)) != EOF) {
+    static struct option long_options[] = {
+        { "cgroup", no_argument, NULL, 'c' },
+        { "help", no_argument, NULL, 'h' },
+        { "ipc", no_argument, NULL, 'i' },
+        { "mounts", no_argument, NULL, 'm' },
+        { "net", no_argument, NULL, 'n' },
+        { "pid", no_argument, NULL, 'p' },
+        { "user", no_argument, NULL, 'U' },
+        { "uts", no_argument, NULL, 'u' },
+        { "volume", no_argument, NULL, 'v' },
+        { "qcow2", required_argument, NULL, 'Q' },
+        { "path", required_argument, NULL, 'P' },
+        { "command", required_argument, NULL, 'C' },
+        { NULL, 0, NULL, 0 }
+    };
+    int option_index = 0;
+    while ((opt = getopt_long(argc, argv, OPTSTR, long_options, &option_index)) != EOF) {
         switch (opt) {
         case 'i':
             namespaces |= CLONE_NEWIPC;
