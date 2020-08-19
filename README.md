@@ -130,3 +130,4 @@ In future it would be fun to implement:
 - [ ] directly use docker images as template/rootfs for the container
 - [ ] lxc-like boot to have a full system instead of a single process
 - [ ] pass namespaced network interface (bridge?) to have a separate network (right now, isolating network results in missing connectivity)
+- [ ] add cgroups support, in this demo we will just use CPU, Memory and PIDs
