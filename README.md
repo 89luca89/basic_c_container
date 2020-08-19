@@ -50,17 +50,18 @@ or
 ### Example with command line arguments
 
 ```
-container_example [-Q path-to-qcow2-image (optional)]
- [-P path-to-mountpoint]
- [-C command-to-execute] [-h]
- [-i reate the process in a new IPC namespace] 
- [-n isolate network devices from host ] 
- [-m isolate mountpoints namespace]
- [-p create the process in a new PID namespace] 
- [-u isolate hostname] 
- [-c Create the process in a new cgroup ]
- [-U create the process in a new USER namespace ]
- [-v mount_host:mount_container ]
+Usage: container_example [OPTION]...
+ [-Q/--qcow2 path-to-qcow2-image (optional)]
+ [-P/--path path-to-mountpoint]
+ [-C/--command command-to-execute] [-h/--help]
+ [-i/--ipc reate the process in a new IPC namespace]
+ [-n/--net isolate network devices from host ]
+ [-m/--mounts isolate mountpoints namespace]
+ [-p/--pid create the process in a new PID namespace]
+ [-u/--uts isolate hostname]
+ [-c/--cgroup Create the process in a new cgroup ]
+ [-U/--user create the process in a new USER namespace ]
+ [-v/--volume mount_host:mount_container ]
 ```
 
 if you want to use qcow2 images as base for rootfs, you can use the `-Q` flag to point to the .qcow2 file,
