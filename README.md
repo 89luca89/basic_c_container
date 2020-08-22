@@ -110,6 +110,17 @@ command:
 ![rootless-container-1](./pics/rootless-container-1.png)
 ![rootless-container-2](./pics/rootless-container-2.png)
 
+## Excluding Syscalls
+
+It is possible to also harden the container disabling some syscalls, using `seccomp`.
+For now, it is a static set of whitelisted syscalls that are necessary for the container
+to function properly, but it may be possible in future to create some sort of profile file per-container.
+
+As it's possible to see here, after hardening the container (`-s` or `--seccomp-enable` flag)
+
+![seccopm](./pics/seccomp.png)
+
+non-vital syscalls are blocked now.
 
 ## References
 
@@ -126,10 +137,10 @@ In future it would be fun to implement:
 - [x] support for capabilities+secutebits to create unprivileged containers
 - [x] rootless containers
 - [x] mountpoints support docker style `-v a:b -v c:d`
+- [x] add seccomp support, block some syscalls to test
 - [x] qcow2 support, to use an existing VM as a template/rootfs for the container, much like `systemd-nspanw` does
 - [ ] img/iso support to use existing VM as template/rootfs for the container
 - [ ] directly use docker images as template/rootfs for the container
 - [ ] lxc-like boot to have a full system instead of a single process
 - [ ] pass namespaced network interface (bridge?) to have a separate network (right now, isolating network results in missing connectivity)
 - [ ] add cgroups support, in this demo we will just use CPU, Memory and PIDs
-- [ ] add seccomp support, block some syscalls to test

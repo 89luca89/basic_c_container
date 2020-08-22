@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 
-#define OPTSTR "inmpuUcX:Y:Z:W:Q:P:C:v:h"
+#define OPTSTR "sinmpuUcX:Y:Z:W:Q:P:C:v:h"
 #define USAGE_FMT \
     "Usage: %s [OPTION]...\n \
 [-Q/--qcow2 path-to-qcow2-image (optional)]\n [-P/--path path-to-mountpoint]\n [-C/--command command-to-execute] [-h/--help]\n \
@@ -11,7 +11,8 @@
 [-u/--uts isolate hostname] \n \
 [-c/--cgroup Create the process in a new cgroup ]\n \
 [-U/--user create the process in a new USER namespace ]\n \
-[-v/--volume mount_host:mount_container ]\n"
+[-v/--volume mount_host:mount_container ]\n \
+[-s/--seccomp-enable restrict enabled syscalls to th minimum ]\n"
 #define DEFAULT_PROGNAME "container_example"
 
 #include <dirent.h>
@@ -20,6 +21,7 @@
 #include <getopt.h>
 #include <linux/securebits.h>
 #include <sched.h>
+#include <seccomp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,6 +66,7 @@ char** MOUNT_POINTS;
 int MOUNT_POINTS_NUM = 0;
 
 int NEW_USER_NS = 0;
+int SECCOMP_ENABLE = 0;
 
 const char* FSTYPES[] = { "ext4", "ext3", "ext2", "xfs", "btrfs" };
 int FSTYPES_NUM = sizeof(FSTYPES) / sizeof(const char*);
@@ -119,7 +122,8 @@ int main(int argc, char* argv[])
         { "pid", no_argument, NULL, 'p' },
         { "user", no_argument, NULL, 'U' },
         { "uts", no_argument, NULL, 'u' },
-        { "volume", no_argument, NULL, 'v' },
+        { "seccomp-enable", no_argument, NULL, 's' },
+        { "volume", required_argument, NULL, 'v' },
         { "qcow2", required_argument, NULL, 'Q' },
         { "path", required_argument, NULL, 'P' },
         { "command", required_argument, NULL, 'C' },
@@ -156,6 +160,9 @@ int main(int argc, char* argv[])
             MOUNT_POINTS_NUM++;
             MOUNT_POINTS = (char**)realloc(MOUNT_POINTS, (MOUNT_POINTS_NUM) * sizeof(char*));
             MOUNT_POINTS[MOUNT_POINTS_NUM - 1] = optarg;
+            break;
+        case 's':
+            SECCOMP_ENABLE = 1;
             break;
         case 'Q':
             QCOW2 = optarg;
@@ -320,7 +327,7 @@ void prepare_image(char* qcow2, char* path)
     // try mount for each supported filesystem
     for (int fstype = 0; fstype < FSTYPES_NUM; fstype++) {
         // if mount successfully, go ahead, else try another FSType
-        if (mount(NBD_PART, path, FSTYPES[fstype], MS_REC, "") == 0) {
+        if (mount(NBD_PART, path, FSTYPES[fstype], 0, "") == 0) {
             printf("detected filesystem %s...\n", FSTYPES[fstype]);
             break;
         }
@@ -337,6 +344,103 @@ void cleanup_image(char* path)
     // let system know we have umounted.
     sleep(1);
     system(NBD_DISCONNECT_CMD);
+}
+
+/* to detect what syscall are necessary for the bare minimum container, set to
+// SCMP_ACT_LOG then use
+//          journalctl -f | grep -Eo 'syscall=[0-9]+ ' | cut -d'=' -f2 | sort -un
+//  and whitelist those.
+//
+//  to see the name of the available syscalls in the system,
+//          awk 'BEGIN { print "#include <sys/syscall.h>" } /p_syscall_meta/ { syscall = substr($NF, 19); printf "syscalls[SYS_%s] = \"%s\";\n", syscall, syscall }' \
+//          /proc/kallsyms | sort -u | gcc -E -P -
+*/
+void seccomp_restrict()
+{
+    printf("restricting seccomp profile...\n");
+    scmp_filter_ctx ctx;
+
+    ctx = seccomp_init(SCMP_ACT_KILL);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(pread64), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(pwrite64), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(mremap), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(kill), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(flock), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fdatasync), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(ftruncate), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(mkdir), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(unlink), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fchown), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(sigaltstack), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(pipe2), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getrandom), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(open), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(poll), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(writev), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(sendfile), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fork), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getpgid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(gettid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(lstat), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(flistxattr), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(llistxattr), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(listxattr), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fgetxattr), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(lgetxattr), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getxattr), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fadvise64), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(close), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(stat), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fstat), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(lseek), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(mmap), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(mprotect), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(munmap), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(brk), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigaction), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigprocmask), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigreturn), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(ioctl), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(access), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(pipe), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(dup), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(dup2), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getpid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(socket), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(select), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(connect), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(clone), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(execve), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(wait4), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(uname), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fcntl), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getcwd), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(readlink), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(chown), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(umask), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(sysinfo), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getuid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getgid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(geteuid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getegid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(setpgid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getppid), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getpgrp), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(statfs), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(arch_prctl), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(futex), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getdents64), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(set_tid_address), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit_group), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(openat), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(faccessat), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(pselect6), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(set_robust_list), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(dup3), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(prlimit64), 0);
+    seccomp_load(ctx);
 }
 
 int create_container(char* path, char* cmd)
@@ -359,6 +463,9 @@ int create_container(char* path, char* cmd)
     // drop prefixed capabilities
     drop_capabilities();
 
+    if (SECCOMP_ENABLE == 1) {
+        seccomp_restrict();
+    }
     // execute the containerized shell
     execv("/bin/sh", command);
     perror("exec");
@@ -384,7 +491,7 @@ void setup_mountpoints()
         sprintf(mount_point, "%s%s", PATH, internal_path + 1);
 
         // bind mount it
-        mount(external_path, mount_point, "", MS_BIND | MS_REC | MS_PRIVATE, NULL);
+        mount(external_path, mount_point, "", MS_BIND, NULL);
     }
 }
 
