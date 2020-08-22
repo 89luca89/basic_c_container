@@ -27,15 +27,15 @@ tar xfv alpine-minirootfs-3.12.0-x86_64.tar.gz -C /home/alpine-minirootfs-3.12.0
 
 This project depends on libcap-dev
 
-`yum install libcap-devel`
+`yum install libcap-devel libseccomp-devel` 
 
 or
 
-`apt install libcap-dev`
+`apt install libcap-dev libseccomp-dev`
 
 or
 
-`zypper install libcap-devel`
+`zypper install libcap-devel libseccomp-devel`
 
 ### Compiling
 
