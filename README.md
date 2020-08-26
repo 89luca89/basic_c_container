@@ -122,6 +122,20 @@ As it's possible to see here, after hardening the container (`-s` or `--seccomp-
 
 non-vital syscalls are blocked now.
 
+**Whitelisting syscalls**
+
+Maybe this mode is too strict for your software to run, so we want to whitelist the syscalls we need.
+
+Using the `-S` or `--seccomp-whitelist` flag, we provide a list of **syscall numbers** to whitelist.
+
+For example, if we add to the previous example:
+
+`sudo ./out/container_example -i -m -p -u -c -P /home/centos-rootfs/ -Q ~/VirtualMachines/centos8-terraform.qcow2 -C /bin/bash -v /etc/resolv.conf:/etc/resolv.conf --seccomp-enable --seccomp-whitelist 49,51,47,44,54,307,45,55,271,48`
+
+![seccomp-whitelist](./pics/seccomp-whitelist.png)
+
+Now telnet will work, but still blocking non-needed syscalls needed from other software (like curl in the pic).
+
 ## References
 
 1. https://medium.com/@teddyking/linux-namespaces-850489d3ccf

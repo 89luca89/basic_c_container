@@ -12,7 +12,8 @@
 [-c/--cgroup Create the process in a new cgroup ]\n \
 [-U/--user create the process in a new USER namespace ]\n \
 [-v/--volume mount_host:mount_container ]\n \
-[-s/--seccomp-enable restrict enabled syscalls to th minimum ]\n"
+[-s/--seccomp-enable restrict enabled syscalls to th minimum ]\n \
+[-S/--seccomp-whitelist comma separated list of syscall numbers to allow ]\n"
 #define DEFAULT_PROGNAME "container_example"
 
 #include <dirent.h>
@@ -124,7 +125,7 @@ int main(int argc, char* argv[])
         { "user", no_argument, NULL, 'U' },
         { "uts", no_argument, NULL, 'u' },
         { "seccomp-enable", no_argument, NULL, 's' },
-        { "seccomp-whitelist", no_argument, NULL, 'S' },
+        { "seccomp-whitelist", required_argument, NULL, 'S' },
         { "volume", required_argument, NULL, 'v' },
         { "qcow2", required_argument, NULL, 'Q' },
         { "path", required_argument, NULL, 'P' },
@@ -448,7 +449,7 @@ void seccomp_restrict()
 
     char* seccomp_custom_rule = strtok(SECCOMP_WHITELIST, ",");
     while (seccomp_custom_rule != NULL) {
-        printf("### %s %d\n", seccomp_custom_rule, atoi(seccomp_custom_rule));
+        printf("### Whitelisting syscalls %s\n", seccomp_custom_rule);
         int rule = atoi(seccomp_custom_rule);
         seccomp_rule_add(ctx, SCMP_ACT_ALLOW, rule, 0);
 
