@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 
-#define OPTSTR "sinmpuUcX:Y:Z:W:Q:P:C:v:h"
+#define OPTSTR "sinmpuUcX:Y:Z:W:Q:P:C:S:v:h"
 #define USAGE_FMT \
     "Usage: %s [OPTION]...\n \
 [-Q/--qcow2 path-to-qcow2-image (optional)]\n [-P/--path path-to-mountpoint]\n [-C/--command command-to-execute] [-h/--help]\n \
@@ -53,6 +53,7 @@ int MAX_STRING = 100;
 char* QCOW2;
 char* PATH;
 char* CMD;
+char* SECCOMP_WHITELIST;
 
 char HOSTNAME[10];
 
@@ -123,6 +124,7 @@ int main(int argc, char* argv[])
         { "user", no_argument, NULL, 'U' },
         { "uts", no_argument, NULL, 'u' },
         { "seccomp-enable", no_argument, NULL, 's' },
+        { "seccomp-whitelist", no_argument, NULL, 'S' },
         { "volume", required_argument, NULL, 'v' },
         { "qcow2", required_argument, NULL, 'Q' },
         { "path", required_argument, NULL, 'P' },
@@ -163,6 +165,9 @@ int main(int argc, char* argv[])
             break;
         case 's':
             SECCOMP_ENABLE = 1;
+            break;
+        case 'S':
+            SECCOMP_WHITELIST = optarg;
             break;
         case 'Q':
             QCOW2 = optarg;
@@ -440,6 +445,16 @@ void seccomp_restrict()
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(set_robust_list), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(dup3), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(prlimit64), 0);
+
+    char* seccomp_custom_rule = strtok(SECCOMP_WHITELIST, ",");
+    while (seccomp_custom_rule != NULL) {
+        printf("### %s %d\n", seccomp_custom_rule, atoi(seccomp_custom_rule));
+        int rule = atoi(seccomp_custom_rule);
+        seccomp_rule_add(ctx, SCMP_ACT_ALLOW, rule, 0);
+
+        // go to next string
+        seccomp_custom_rule = strtok(NULL, ",");
+    }
     seccomp_load(ctx);
 }
 
