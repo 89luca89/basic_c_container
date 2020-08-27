@@ -62,6 +62,9 @@ Usage: container_example [OPTION]...
  [-c/--cgroup Create the process in a new cgroup ]
  [-U/--user create the process in a new USER namespace ]
  [-v/--volume mount_host:mount_container ]
+ [-s/--seccomp-enable restrict enabled syscalls to th minimum ]
+ [-S/--seccomp-whitelist comma separated list of syscall numbers to allow ]
+
 ```
 
 if you want to use qcow2 images as base for rootfs, you can use the `-Q` flag to point to the .qcow2 file,
